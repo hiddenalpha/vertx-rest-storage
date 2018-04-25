@@ -1,7 +1,9 @@
 package org.swisspush.reststorage;
 
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.file.AsyncFile;
 import io.vertx.core.file.FileProps;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.file.OpenOptions;
@@ -143,20 +145,50 @@ public class FileSystemStorage implements Storage {
         put(path, etag, merge, expire, "", LockMode.SILENT, 0, handler);
     }
 
-    private void putFile(final Handler<Resource> handler, final String fullPath) {
-        final String tempFile = fullPath + "." + UUID.randomUUID().toString();
-        fileSystem().open(tempFile, new OpenOptions(), event -> {
-            if (event.succeeded()) {
-                final DocumentResource d = new DocumentResource();
-                d.writeStream = event.result();
-                d.closeHandler = v -> event.result().close(event2 -> fileSystem().delete(fullPath, event3 -> fileSystem().move(tempFile, fullPath, event4 -> d.endHandler.handle(null))));
-                handler.handle(d);
-            } else {
-                Resource r = new Resource();
-                r.exists = false;
-                handler.handle(r);
+    private void putFile(final Handler<Resource> handler, String fullPath) {
+        final String tmpDir = "tmp/";
+        final String tmpFilePath = tmpDir + "upload-" + UUID.randomUUID().toString();
+        final String tmpDirAbs = canonicalize( "/"+ tmpDir );
+        final String tmpFilePathAbs = canonicalize( "/"+ tmpFilePath );
+        final FileSystem fileSystem = fileSystem();
+        new Runnable(){
+            @Override public void run() {
+                fileSystem.mkdirs( tmpDirAbs , this::openTmpFile );
             }
-        });
+            private void openTmpFile( Object unusedEvent ) {
+                fileSystem.open(tmpFilePathAbs, new OpenOptions(), this::onTmpFileOpen );
+            }
+            private void onTmpFileOpen( AsyncResult<AsyncFile> tmpFileOpenEvent ) {
+                if (tmpFileOpenEvent.succeeded()) {
+                    final AsyncFile tmpFile = tmpFileOpenEvent.result();
+                    final DocumentResource d = new DocumentResource();
+                    d.writeStream = tmpFile;
+                    d.closeHandler = v -> tmpFile.close( ev -> onResourceClose(d) );
+                    d.addErrorHandler( err -> onResourceError(err,tmpFile) );
+                    handler.handle(d);
+                } else {
+                    Resource r = new Resource();
+                    r.exists = false;
+                    handler.handle(r);
+                }
+            }
+            private void onResourceClose( DocumentResource d ) {
+                fileSystem.delete(fullPath, event3 -> {
+                    fileSystem.move(tmpFilePathAbs, fullPath, event4 -> {
+                        d.endHandler.handle(null);
+                    });
+                });
+            }
+            private void onResourceError( Throwable exc , AsyncFile tmpFile ) {
+                log.error( "Put file failed:" , exc );
+                tmpFile.close( voidCloseEvent -> {
+                    log.debug( "Tmp file '{}' closed." , tmpFilePathAbs );
+                    delete(tmpFilePath, null, null, 0, false, true, voidDeleteEvent -> {
+                        log.debug("Tmp file '{}' deleted.", tmpFilePathAbs);
+                    });
+                });
+            }
+        }.run();
     }
 
     @Override
@@ -171,18 +203,18 @@ public class FileSystemStorage implements Storage {
         boolean finalDeleteRecursiveInFileSystem = deleteRecursiveInFileSystem;
 
         fileSystem().exists(fullPath, event -> {
-            if (event.result()) {
+                if (event.result()) {
                 fileSystem().deleteRecursive(fullPath, finalDeleteRecursiveInFileSystem, event1 -> {
-                    Resource resource = new Resource();
-                    if (event1.failed()) {
-                        if(event1.cause().getCause() != null && event1.cause().getCause() instanceof DirectoryNotEmptyException){
-                            resource.error = true;
-                            resource.errorMessage = "directory not empty. Use recursive=true parameter to delete";
-                        } else {
-                            resource.exists = false;
-                        }
+                Resource resource = new Resource();
+                if (event1.failed()) {
+                    if (event1.cause().getCause() != null && event1.cause().getCause() instanceof DirectoryNotEmptyException) {
+                        resource.error = true;
+                        resource.errorMessage = "directory not empty. Use recursive=true parameter to delete";
+                    } else {
+                        resource.exists = false;
                     }
-                    handler.handle(resource);
+                }
+                handler.handle(resource);
                 });
             } else {
                 Resource r = new Resource();

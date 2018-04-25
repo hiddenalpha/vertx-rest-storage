@@ -60,6 +60,11 @@
             <artifactId>commons-lang</artifactId>
             <version>2.4</version>
         </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.25</version>
+        </dependency>
 
         <!-- TEST dependencies -->
         <dependency>
@@ -112,6 +117,12 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>1.9.5</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.25</version>
             <scope>test</scope>
         </dependency>
 
