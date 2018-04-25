@@ -202,9 +202,20 @@ public class FileSystemStorage implements Storage {
         }
         boolean finalDeleteRecursiveInFileSystem = deleteRecursiveInFileSystem;
 
-        fileSystem().exists(fullPath, event -> {
+        new Runnable(){
+            @Override public void run() {
+                fileSystem().exists(fullPath, this::delete);
+            }
+            private void delete(AsyncResult<Boolean> event) {
                 if (event.result()) {
-                fileSystem().deleteRecursive(fullPath, finalDeleteRecursiveInFileSystem, event1 -> {
+                    fileSystem().deleteRecursive(fullPath, finalDeleteRecursiveInFileSystem, this::prepareResourceAndCallHandler);
+                } else {
+                    Resource r = new Resource();
+                    r.exists = false;
+                    handler.handle(r);
+                }
+            }
+            private void prepareResourceAndCallHandler(AsyncResult<Void> event1) {
                 Resource resource = new Resource();
                 if (event1.failed()) {
                     if (event1.cause().getCause() != null && event1.cause().getCause() instanceof DirectoryNotEmptyException) {
@@ -215,13 +226,8 @@ public class FileSystemStorage implements Storage {
                     }
                 }
                 handler.handle(resource);
-                });
-            } else {
-                Resource r = new Resource();
-                r.exists = false;
-                handler.handle(r);
             }
-        });
+        }.run();
     }
 
     private String canonicalize(String path) {
