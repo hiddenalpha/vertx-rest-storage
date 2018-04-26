@@ -22,8 +22,9 @@ import org.swisspush.reststorage.util.HttpRequestHeader;
 import org.swisspush.reststorage.util.ModuleConfiguration;
 import org.swisspush.reststorage.util.StatusCode;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import static org.mockito.Matchers.eq;
@@ -211,6 +212,32 @@ public class RestStorageHandlerTest {
             testContext.assertNotNull( files );
             testContext.assertEquals( 0 , files.length );
         }
+    }
+
+    @Test
+    public void cleanupResourcesIfConnectionIsClosedTooEarly() throws IOException, InterruptedException {
+        final String hostname = "127.0.0.1";
+        final int port = true ? 8989 : 1234;
+        final Socket clientSocket = new Socket( hostname , port );
+        final OutputStream oStream = clientSocket.getOutputStream();
+
+        logger.debug( "Sending corrupt request." );
+        writeHttp10RequestWithTooSmallBody( oStream , "PUT" , "/tmp/foo/bar" ); // TODO: Replace path
+        oStream.write( ("" +
+                "PUT /foo/bar HTTP/1.1\r\n" +
+                "Host: "+ hostname +":"+ port +"\r\n" +
+                "Content-Length: 1000\r\n" +
+                "\r\n" +
+                "Content far shorter than specified in header.\n"
+        ).getBytes(StandardCharsets.US_ASCII));
+        oStream.flush();
+        logger.debug( "Corrupt request sent." );
+
+        logger.debug( "Close connection before body complete." );
+        oStream.close();
+
+        logger.warn( "TODO: Write asserts." );
+        logger.debug( "Exit" );
     }
 
 
