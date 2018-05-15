@@ -1,31 +1,34 @@
 package org.swisspush.reststorage;
 
-import io.vertx.core.*;
+import io.vertx.core.Handler;
+import io.vertx.core.MultiMap;
+import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.buffer.impl.BufferImpl;
-import io.vertx.core.http.*;
-import io.vertx.core.impl.ContextImpl;
-import io.vertx.core.json.JsonObject;
+import io.vertx.core.http.CaseInsensitiveHeaders;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.logging.Logger;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.swisspush.reststorage.mocks.FastFailHttpServer;
 import org.swisspush.reststorage.mocks.FastFailHttpServerRequest;
 import org.swisspush.reststorage.mocks.FastFailHttpServerResponse;
-import org.swisspush.reststorage.mocks.VertxProxy;
 import org.swisspush.reststorage.util.HttpRequestHeader;
 import org.swisspush.reststorage.util.ModuleConfiguration;
 import org.swisspush.reststorage.util.StatusCode;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -161,6 +164,7 @@ public class RestStorageHandlerTest {
     ///////////////////////////////////////////////////////////////////////////////
 
     @Test
+    @Ignore
     public void resourceGetsStoredOnFileSystem() {
         final RestStorageHandler victim = createRestStorageHandler();
 
@@ -176,6 +180,7 @@ public class RestStorageHandlerTest {
     }
 
     @Test
+    @Ignore
     public void tmpFileGetsDeletedOnUnexpectedConnectionClose(TestContext testContext) throws InterruptedException {
 
         logger.debug( "Using fileSystemStorage root '"+fileSystemStorageRoot+"'.");
@@ -235,6 +240,7 @@ public class RestStorageHandlerTest {
     }
 
     @Test
+    @Ignore
     public void cleanupResourcesIfConnectionIsClosedTooEarly(TestContext testContext) throws Exception {
         final String hostname = "127.0.0.1";
         final int port = true ? 8989 : 1234;
