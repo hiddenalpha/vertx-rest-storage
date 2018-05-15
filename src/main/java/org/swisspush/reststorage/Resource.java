@@ -1,11 +1,6 @@
 package org.swisspush.reststorage;
 
 import io.vertx.core.Handler;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
-
 
 public class Resource implements Comparable<Resource>{
     public String name;
@@ -17,7 +12,7 @@ public class Resource implements Comparable<Resource>{
     public String invalidMessage;
     public String errorMessage;
 
-    public Handler<Throwable> errorHandler;
+    public Handler<String> errorHandler;
     
     @Override
     public int compareTo(Resource o) {
@@ -47,56 +42,5 @@ public class Resource implements Comparable<Resource>{
         } else if (!name.equals(other.name))
             return false;
         return true;
-    }
-
-    public void addErrorHandler(Handler<Throwable> handler) {
-        if (errorHandler instanceof EventEmitter) {
-            ((EventEmitter) errorHandler).addHandler(handler);
-        } else {
-            errorHandler = new EventEmitter<Throwable>() {{
-                if(errorHandler != null) addHandler(errorHandler);
-                addHandler(handler);
-            }};
-        }
-    }
-
-}
-
-
-/**
- * <p>Simple event dispatcher.</p>
- *
- * @param <T>
- *      Event type.
- */
-class EventEmitter<T> implements Handler<T> {
-
-    private static final org.slf4j.Logger log = LoggerFactory.getLogger(EventEmitter.class);
-
-    /**
-     * <p>Delegated propagated event to each caller. Keep in mind: Every handler
-     * will receive same event instance!</p>
-     */
-    @Override
-    public void handle(T event) {
-        for (Handler<T> handler : handlers) {
-            try {
-                handler.handle(event);
-            } catch (Exception e) {
-                log.error("Exception thrown in event handler.", e);
-            }
-        }
-    }
-
-    /**
-     * @param handler
-     *      Handler to receive events with.
-     */
-    public void addHandler(Handler<T> handler) {
-        //if( handler == null ){ throw new IllegalArgumentException("Arg 'handler' MUST NOT be null."); }
-        handlers.add(handler);
-    }
-
-    private final List<Handler<T>> handlers = new ArrayList<>();
-
+    }            
 }

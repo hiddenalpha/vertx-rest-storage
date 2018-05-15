@@ -1,14 +1,11 @@
 package org.swisspush.reststorage;
 
-import io.vertx.core.Handler;
-import io.vertx.core.MultiMap;
-import io.vertx.core.Vertx;
+import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.buffer.impl.BufferImpl;
-import io.vertx.core.http.CaseInsensitiveHeaders;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerRequest;
-import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.http.*;
+import io.vertx.core.impl.ContextImpl;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
@@ -16,8 +13,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.swisspush.reststorage.mocks.FastFailHttpServer;
 import org.swisspush.reststorage.mocks.FastFailHttpServerRequest;
 import org.swisspush.reststorage.mocks.FastFailHttpServerResponse;
+import org.swisspush.reststorage.mocks.VertxProxy;
 import org.swisspush.reststorage.util.HttpRequestHeader;
 import org.swisspush.reststorage.util.ModuleConfiguration;
 import org.swisspush.reststorage.util.StatusCode;
@@ -26,6 +25,7 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -38,6 +38,7 @@ import static org.mockito.Mockito.*;
 @RunWith(VertxUnitRunner.class)
 public class RestStorageHandlerTest {
 
+    private static final String fileSystemStorageRoot = "target/"+RestStorageHandlerTest.class.getSimpleName()+"/root/";
     private Vertx vertx;
     private Storage storage;
     private RestStorageHandler restStorageHandler;
@@ -160,18 +161,27 @@ public class RestStorageHandlerTest {
     ///////////////////////////////////////////////////////////////////////////////
 
     @Test
+    public void resourceGetsStoredOnFileSystem() {
+        final RestStorageHandler victim = createRestStorageHandler();
+
+        // Mock request
+        final HttpServerRequest request;
+        {
+            request = new FastFailHttpServerRequest(){
+            };
+        }
+
+        // Trigger work
+        victim.handle( request );
+    }
+
+    @Test
     public void tmpFileGetsDeletedOnUnexpectedConnectionClose(TestContext testContext) throws InterruptedException {
-        final String fileSystemStorageRoot = "target/testFileSystemStorage-a85zupw0q9v8e5zu/";
 
         logger.debug( "Using fileSystemStorage root '"+fileSystemStorageRoot+"'.");
 
         // Setup victim
-        final RestStorageHandler victim;
-        {
-            final Storage fileSystemStorage = new FileSystemStorage( vertx , fileSystemStorageRoot );
-            ModuleConfiguration moduleConfig = new ModuleConfiguration();
-            victim = new RestStorageHandler( vertx , log , fileSystemStorage , moduleConfig );
-        }
+        final RestStorageHandler victim = createRestStorageHandler();
 
         // Mock a request.
         final String path = "/houston/server/storage-file/my-half-done-file";
@@ -199,7 +209,7 @@ public class RestStorageHandlerTest {
         // Wait until response is complete
         for( int i=0 ;; ++i ){
             if( i > 50 ) testContext.fail( "Request didn't complete in time." );
-            logger.debug( "Awaiting response..." );
+            logger.trace( "Awaiting response..." );
             Thread.sleep(100);
             synchronized (responseCompletePtr) {
                 if (responseCompletePtr[0]) break;
@@ -210,19 +220,28 @@ public class RestStorageHandlerTest {
         {
             final File[] files = new File( fileSystemStorageRoot ).listFiles();
             testContext.assertNotNull( files );
-            testContext.assertEquals( 0 , files.length );
+            if( files.length == 0 ){
+                // Store is empty. That's ok.
+            }else if( files.length == 1 ){
+                // Only '.tmp' is allowed.
+                testContext.assertEquals( ".tmp" , files[0].getName() );
+                // And it has to be a directory.
+                testContext.assertTrue( files[0].isDirectory() );
+            }else{
+                testContext.fail( "Too much files/dirs in file storage." );
+            }
+            testContext.fail( "TODO: Write some more asserts." );
         }
     }
 
     @Test
-    public void cleanupResourcesIfConnectionIsClosedTooEarly() throws IOException, InterruptedException {
+    public void cleanupResourcesIfConnectionIsClosedTooEarly(TestContext testContext) throws Exception {
         final String hostname = "127.0.0.1";
         final int port = true ? 8989 : 1234;
         final Socket clientSocket = new Socket( hostname , port );
         final OutputStream oStream = clientSocket.getOutputStream();
 
         logger.debug( "Sending corrupt request." );
-        writeHttp10RequestWithTooSmallBody( oStream , "PUT" , "/tmp/foo/bar" ); // TODO: Replace path
         oStream.write( ("" +
                 "PUT /foo/bar HTTP/1.1\r\n" +
                 "Host: "+ hostname +":"+ port +"\r\n" +
@@ -230,20 +249,33 @@ public class RestStorageHandlerTest {
                 "\r\n" +
                 "Content far shorter than specified in header.\n"
         ).getBytes(StandardCharsets.US_ASCII));
-        oStream.flush();
         logger.debug( "Corrupt request sent." );
 
         logger.debug( "Close connection before body complete." );
         oStream.close();
 
-        logger.warn( "TODO: Write asserts." );
-        logger.debug( "Exit" );
+        // Assert
+
+
+        testContext.fail( "TODO: Write some asserts." );
     }
 
 
     ///////////////////////////////////////////////////////////////////////////////
     // Helpers
     ///////////////////////////////////////////////////////////////////////////////
+
+    private HttpServerRequest createPutRequest( final String path , final HttpServerResponse response ) {
+        return new FastFailHttpServerRequest(){
+            @Override public String path() { return path; }
+        };
+    }
+
+    private RestStorageHandler createRestStorageHandler() {
+        final Storage fileSystemStorage = new FileSystemStorage( vertx , fileSystemStorageRoot );
+        final ModuleConfiguration moduleConfig = new ModuleConfiguration();
+        return new RestStorageHandler( vertx , log , fileSystemStorage , moduleConfig );
+    }
 
     private HttpServerRequest createRequestWhichClosesBeforeBodyTransferred(final String path , final HttpServerResponse response ) {
         final MultiMap requestHeaders = new CaseInsensitiveHeaders();
