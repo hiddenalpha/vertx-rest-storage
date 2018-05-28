@@ -3,10 +3,7 @@ package org.swisspush.reststorage;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
-import io.vertx.core.file.AsyncFile;
-import io.vertx.core.file.FileProps;
-import io.vertx.core.file.FileSystem;
-import io.vertx.core.file.OpenOptions;
+import io.vertx.core.file.*;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.swisspush.reststorage.util.LockMode;
@@ -14,6 +11,7 @@ import org.swisspush.reststorage.util.LockMode;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 
 public class FileSystemStorage implements Storage {
@@ -224,6 +222,39 @@ public class FileSystemStorage implements Storage {
                 handler.handle(r);
             }
         });
+    }
+
+    /**
+     * @param path
+     *      Most deep directory to start bubbling up deletion of empty directories.
+     */
+    private void deleteEmptyParentDirs(String path) {
+        final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger( getClass() ); // TODO: Drop line
+        final FileSystem fileSystem = fileSystem();
+        final String pathAbs = root + path;
+        log.debug( "Deleting empty parent directories of '{}'.", pathAbs);
+        fileSystem.delete( pathAbs , result -> {
+            if( result.succeeded() ){
+                // Bubbling up to parent by recursion.
+                final String parentPath = new File(path).getParent();
+                deleteEmptyParentDirs( parentPath );
+            }else{
+                final Throwable cause = result.cause();
+                if(cause instanceof FileSystemException && cause.getCause() instanceof DirectoryNotEmptyException){
+                    System.out.println( "Directory '"+pathAbs+"' not empty. Stop bubbling deletion of empty dirs." );
+                }else if(cause instanceof FileSystemException && cause.getCause() instanceof NoSuchFileException){
+                    log.warn( "Ignored to delete non-existing dir '{}'.", pathAbs );
+                }else{
+                    log.warn("Unexpected cause while deleting empty directories." , cause);
+                }
+            }
+        });
+    }
+
+    public static void main(String[] args) {
+        final String root = "C:/work/tmp/vertxFileSystemExperiments/";
+        final FileSystemStorage victim = new FileSystemStorage(Vertx.vertx(), root);
+        victim.deleteEmptyParentDirs( "/my/example/" );
     }
 
     private String canonicalize(String path) {
