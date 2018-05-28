@@ -52,7 +52,7 @@ public class Resource implements Comparable<Resource>{
 
     public void addErrorHandler(Handler<Throwable> handler) {
         if (errorHandler instanceof EventEmitter) {
-            ((EventEmitter) errorHandler).addHandler(handler);
+            ((EventEmitter<Throwable>) errorHandler).addHandler(handler);
         } else {
             errorHandler = new EventEmitter<Throwable>() {{
                 if(errorHandler != null) addHandler(errorHandler);

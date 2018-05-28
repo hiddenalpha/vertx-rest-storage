@@ -177,7 +177,7 @@ public class FileSystemStorage implements Storage {
                     // Move/rename our temporary file to its final destination.
                     fileSystem.move(tmpFilePathAbs, fullPath, event4 -> {
                         log.debug( "File stored successfully: {}", fullPath );
-                        d.endHandler.handle(null);
+                        if(d.endHandler!=null) d.endHandler.handle(null);
                     });
                 });
             }
@@ -215,8 +215,6 @@ public class FileSystemStorage implements Storage {
                         } else {
                             resource.exists = false;
                         }
-                    }else{
-                        deleteEmptyParents(path);
                     }
                     handler.handle(resource);
                 });
@@ -226,55 +224,6 @@ public class FileSystemStorage implements Storage {
                 handler.handle(r);
             }
         });
-    }
-
-    private void deleteEmptyParents(String path, Handler<Void> handler) {
-        final FileSystem fileSystem = fileSystem();
-        final Map<String, Void> pendingEntries = new HashMap<>();
-        new Runnable(){
-            @Override public void run() {
-                fileSystem.readDir(path, this::handleEntries);
-            }
-            private void handleEntries(AsyncResult<List<String>> result) {
-                final List<String> entries = result.result();
-                for (final String entry : entries) {
-                    // Register that we started an action for entry.
-                    pendingEntries.put(entry,null);
-                    // Trigger actual handling.
-                    handleEntry( entry );
-                }
-            }
-            private void handleEntry(String entry) {
-                // Extract properties of current entry (such as if this is a directory or not).
-                fileSystem.props(entry, (result)-> deleteIfEmptyDirectory(entry,result));
-            }
-            private void deleteIfEmptyDirectory(String entry, AsyncResult<FileProps> result) {
-                final FileProps props = result.result();
-                if( props.isDirectory() ){
-                    // Look for children of this entry.
-                    fileSystem.readDir(entry, (childrenResult)->deleteIfEmpty(entry,childrenResult));
-                }else{
-                    // Nothing to do. We've to delete directories only. Mark entry as done.
-                    finalizeEntry(entry);
-                }
-            }
-            private void deleteIfEmpty(String dir, AsyncResult<List<String>> result) {
-                final List<String> children = result.result();
-                if( children.size() == 0 ){
-                    deleteDirectory(dir);
-                }
-            }
-            private void deleteDirectory(String entry) {
-                // Delete actual directory
-                fileSystem.delete(entry, (result)->finalizeEntry(entry));
-            }
-            private void finalizeEntry(String entry) {
-                pendingEntries.remove(entry);
-                if(pendingEntries.size() == 0 && handler!=null){
-                    handler.handle( null );
-                }
-            }
-        }.run();
     }
 
     private String canonicalize(String path) {
