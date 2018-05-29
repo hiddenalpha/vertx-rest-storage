@@ -30,15 +30,10 @@ public class FileSystemStorage implements Storage {
             try {
                 rootAbs = new File(root).getCanonicalPath();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new IllegalArgumentException("Failed to canonicalize root: '"+root+"'.", e);
             }
             int rootLen;
-            for( rootLen=rootAbs.length()-1 ; ; --rootLen ){
-                final char lastChr = rootAbs.charAt(rootLen);
-                if(!( lastChr == '/' || lastChr == '\\' )){
-                    break;
-                }
-            }
+            for( rootLen=rootAbs.length()-1 ; rootAbs.charAt(rootLen) == File.separatorChar ; --rootLen );
             this.rootLen = rootLen;
         }
     }
