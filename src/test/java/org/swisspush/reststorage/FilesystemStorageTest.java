@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 @RunWith(VertxUnitRunner.class)
 public class FilesystemStorageTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(FilesystemStorageTest.class);
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(FilesystemStorageTest.class);
 
     @Test(expected=UnsupportedOperationException.class)
     public void testGetMemoryUsageNotYetImplemented(TestContext testContext){
