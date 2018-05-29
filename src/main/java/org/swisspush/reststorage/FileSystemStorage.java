@@ -192,7 +192,7 @@ public class FileSystemStorage implements Storage {
                     // Move/rename our temporary file to its final destination.
                     fileSystem.move(tmpFilePathAbs, fullPath, event4 -> {
                         log.debug( "File stored successfully: {}", fullPath );
-                        if(d.endHandler!=null) d.endHandler.handle(null);
+                        d.endHandler.handle(null);
                     });
                 });
             }
@@ -247,10 +247,10 @@ public class FileSystemStorage implements Storage {
      * Deletes all empty parent directories starting at specified directory.
      *
      * @param path
-     *      Most deep directory to start bubbling up deletion of empty directories.
+     *      Most deep (virtual) directory to start bubbling up deletion of empty
+     *      directories.
      */
     private void deleteEmptyParentDirs(String path) {
-        final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger( getClass() ); // TODO: Drop line
         final FileSystem fileSystem = fileSystem();
         final String pathAbs = canonicalize(path);
 
