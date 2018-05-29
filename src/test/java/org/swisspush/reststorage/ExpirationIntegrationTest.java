@@ -3,6 +3,7 @@ package org.swisspush.reststorage;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -186,6 +187,7 @@ public class ExpirationIntegrationTest extends RedisStorageIntegrationTestCase {
     }
 
     @Test
+    @Ignore
     public void testPutWithNoExpiryAfterImmediateExpiration(TestContext context) {
         Async async = context.async();
         given().

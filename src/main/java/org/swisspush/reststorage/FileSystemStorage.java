@@ -26,9 +26,15 @@ public class FileSystemStorage implements Storage {
         this.vertx = vertx;
         this.root = root;
         { // Cache string length of root without trailing slashes
+            final String rootAbs;
+            try {
+                rootAbs = new File(root).getCanonicalPath();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             int rootLen;
-            for( rootLen=root.length()-1 ; ; --rootLen ){
-                final char lastChr = root.charAt(rootLen);
+            for( rootLen=rootAbs.length()-1 ; ; --rootLen ){
+                final char lastChr = rootAbs.charAt(rootLen);
                 if(!( lastChr == '/' || lastChr == '\\' )){
                     break;
                 }
