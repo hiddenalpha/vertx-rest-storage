@@ -18,12 +18,23 @@ public class FileSystemStorage implements Storage {
 
     private String root;
     private Vertx vertx;
+    private final int rootLen;
 
     private Logger log = LoggerFactory.getLogger(FileSystemStorage.class);
 
     public FileSystemStorage(Vertx vertx, String root) {
         this.vertx = vertx;
         this.root = root;
+        { // Cache string length of root without trailing slashes
+            int rootLen;
+            for( rootLen=root.length()-1 ; ; --rootLen ){
+                final char lastChr = root.charAt(rootLen);
+                if(!( lastChr == '/' || lastChr == '\\' )){
+                    break;
+                }
+            }
+            this.rootLen = rootLen;
+        }
     }
 
     @Override
@@ -213,6 +224,8 @@ public class FileSystemStorage implements Storage {
                         } else {
                             resource.exists = false;
                         }
+                    }else{
+                        deleteEmptyParentDirs(new File(path).getParent());
                     }
                     handler.handle(resource);
                 });
@@ -225,36 +238,54 @@ public class FileSystemStorage implements Storage {
     }
 
     /**
+     * Deletes all empty parent directories starting at specified directory.
+     *
      * @param path
      *      Most deep directory to start bubbling up deletion of empty directories.
      */
     private void deleteEmptyParentDirs(String path) {
         final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger( getClass() ); // TODO: Drop line
         final FileSystem fileSystem = fileSystem();
-        final String pathAbs = root + path;
-        log.debug( "Deleting empty parent directories of '{}'.", pathAbs);
+        final String pathAbs = canonicalize(path);
+
+        // Analyze if we reached root.
+        int pathLen;
+        // Evaluate length of current path excluding trailing slashes by searching
+        // last non-slash (backslash of course on windows).
+        for( pathLen=pathAbs.length()-1 ; pathAbs.charAt(pathLen) == File.separatorChar ; --pathLen );
+        if( rootLen == pathLen ){
+            // We do NOT want to delete our virtual root even it is empty :)
+            log.debug( "Stop deletion here to keep virtual root '{}'.", root );
+            return;
+        }
+
+        log.debug( "Delete directory if empty '{}'.", pathAbs);
         fileSystem.delete( pathAbs , result -> {
             if( result.succeeded() ){
-                // Bubbling up to parent by recursion.
+                // Bubbling up to parent.
                 final String parentPath = new File(path).getParent();
+                // HINT 1: We go recursive here!
+                // HINT 2: When debugging stack traces keep in mind this recursion occurs
+                //         asynchronous and therefore is not really a recursion :)
                 deleteEmptyParentDirs( parentPath );
             }else{
                 final Throwable cause = result.cause();
                 if(cause instanceof FileSystemException && cause.getCause() instanceof DirectoryNotEmptyException){
-                    System.out.println( "Directory '"+pathAbs+"' not empty. Stop bubbling deletion of empty dirs." );
+                    // Failed to delete directory because it's not empty. Therefore we must not
+                    // delete it at all and we're done now.
+                    log.debug( "Directory '"+pathAbs+"' not empty. Stop bubbling deleting dirs." );
                 }else if(cause instanceof FileSystemException && cause.getCause() instanceof NoSuchFileException){
+                    // Somehow a caller requested to delete a directory which seems not to exist.
+                    // This should never be the case theoretically. (except maybe some race
+                    // conditions?)
                     log.warn( "Ignored to delete non-existing dir '{}'.", pathAbs );
                 }else{
-                    log.warn("Unexpected cause while deleting empty directories." , cause);
+                    // This case should not happen. At least up to now i've no idea of a valid
+                    // scenario for this one.
+                    log.error("Unexpected error while deleting empty directories." , cause);
                 }
             }
         });
-    }
-
-    public static void main(String[] args) {
-        final String root = "C:/work/tmp/vertxFileSystemExperiments/";
-        final FileSystemStorage victim = new FileSystemStorage(Vertx.vertx(), root);
-        victim.deleteEmptyParentDirs( "/my/example/" );
     }
 
     private String canonicalize(String path) {
