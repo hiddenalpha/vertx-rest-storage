@@ -146,30 +146,44 @@ public class FileSystemStorage implements Storage {
     }
 
     private void putFile(final Handler<Resource> handler, final String fullPath) {
-        final String tmpFilePath = ".tmp/uploads/"+ new File(fullPath).getName() + "-" + UUID.randomUUID().toString() +".part";
-        final String tmpFilePathAbs = canonicalize(tmpFilePath);
+        final String tmpFilePath = "/.tmp/uploads/"+ new File(fullPath).getName() + "-" + UUID.randomUUID().toString() +".part";
+        final String tmpFilePathAbs = canonicalize("/"+tmpFilePath);
+//        final String tmpFilePathAbs = fullPath + "/" + UUID.randomUUID().toString();
+        final String tmpFileParentPath = new File(tmpFilePathAbs).getParent();
+//        final String tmpFilePath = tmpFilePathAbs.substring(root.length());
         final FileSystem fileSystem = fileSystem();
         new Runnable(){
             @Override public void run() {
-                fileSystem.open(tmpFilePathAbs, new OpenOptions(), this::onTmpFileOpen );
+                fileSystem.mkdirs(tmpFileParentPath, result -> {
+                    if( result.succeeded() ){
+                        openTmpFile();
+                    }else{
+                        throw new RuntimeException("Failed to create directory '"+tmpFileParentPath+"'."); // TODO: Handle
+                    }
+                });
             }
-            private void onTmpFileOpen( AsyncResult<AsyncFile> tmpFileOpenEvent ) {
-                if (tmpFileOpenEvent.succeeded()) {
-                    final AsyncFile tmpFile = tmpFileOpenEvent.result();
-                    final DocumentResource d = new DocumentResource();
-                    d.writeStream = tmpFile;
-                    d.closeHandler = v -> {
-                        tmpFile.close( ev -> {
-                            onResourceClose(d);
-                        });
-                    };
-                    d.addErrorHandler( err -> onResourceError(err,tmpFile) );
-                    handler.handle(d);
-                } else {
-                    Resource r = new Resource();
-                    r.exists = false;
-                    handler.handle(r);
-                }
+            private void openTmpFile() {
+                fileSystem.open(tmpFilePathAbs, new OpenOptions(), result -> {
+                    if( result.succeeded() ){
+                        onTmpFileOpen( result.result() );
+                    }else{
+                        log.warn( "Failed to open tmp file '{}'.", tmpFilePathAbs, result.cause() );
+                        Resource r = new Resource();
+                        r.exists = false;
+                        handler.handle(r);
+                    }
+                });
+            }
+            private void onTmpFileOpen(final AsyncFile tmpFile) {
+                final DocumentResource d = new DocumentResource();
+                d.writeStream = tmpFile;
+                d.closeHandler = v -> {
+                    tmpFile.close( ev -> {
+                        onResourceClose(d);
+                    });
+                };
+                d.addErrorHandler( err -> onResourceError(err,tmpFile) );
+                handler.handle(d);
             }
             private void onResourceClose( DocumentResource d ) {
                 // Delete obsolete file which was there before.

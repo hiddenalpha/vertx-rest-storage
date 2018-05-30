@@ -27,6 +27,7 @@ public abstract class FilesystemStorageTestCase extends ConfigurableTestCase {
         RestAssured.defaultParser = Parser.JSON;
 
         ModuleConfiguration modConfig = new ModuleConfiguration()
+                .root( "./target/fileStorage" )
                 .storageType(ModuleConfiguration.StorageType.filesystem)
                 .confirmCollectionDelete(true)
                 .storageAddress("rest-storage");
