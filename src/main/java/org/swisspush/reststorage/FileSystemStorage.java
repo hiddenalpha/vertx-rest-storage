@@ -146,8 +146,8 @@ public class FileSystemStorage implements Storage {
     }
 
     private void putFile(final Handler<Resource> handler, final String fullPath) {
-        final String tmpFilePathAbs = fullPath + "." + UUID.randomUUID().toString();
-        final String tmpFilePath = tmpFilePathAbs.substring(root.length());
+        final String tmpFilePath = ".tmp/uploads/"+ new File(fullPath).getName() + "-" + UUID.randomUUID().toString() +".part";
+        final String tmpFilePathAbs = canonicalize(tmpFilePath);
         final FileSystem fileSystem = fileSystem();
         new Runnable(){
             @Override public void run() {
