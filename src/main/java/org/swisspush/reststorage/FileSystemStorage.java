@@ -1,6 +1,5 @@
 package org.swisspush.reststorage;
 
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.file.AsyncFile;
@@ -18,14 +17,25 @@ import java.util.*;
 
 public class FileSystemStorage implements Storage {
 
-    private String root;
+    private final String root;
     private Vertx vertx;
 
     private Logger log = LoggerFactory.getLogger(FileSystemStorage.class);
 
     public FileSystemStorage(Vertx vertx, String root) {
         this.vertx = vertx;
-        this.root = root;
+        String tmpRoot;
+        try {
+            // Unify format for simpler work.
+            tmpRoot = new File(root).getCanonicalPath();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to evaluate canonical form of passed root: '"+root+"'.", e);
+        }
+        // Fix ugly operating systems.
+        if( File.separatorChar == '\\' ){
+            tmpRoot = tmpRoot.replaceAll("\\\\","/");
+        }
+        this.root = tmpRoot;
     }
 
     @Override
@@ -147,10 +157,8 @@ public class FileSystemStorage implements Storage {
 
     private void putFile(final Handler<Resource> handler, final String fullPath) {
         final String tmpFilePath = "/.tmp/uploads/"+ new File(fullPath).getName() + "-" + UUID.randomUUID().toString() +".part";
-        final String tmpFilePathAbs = canonicalize("/"+tmpFilePath);
-//        final String tmpFilePathAbs = fullPath + "/" + UUID.randomUUID().toString();
+        final String tmpFilePathAbs = canonicalize(tmpFilePath);
         final String tmpFileParentPath = new File(tmpFilePathAbs).getParent();
-//        final String tmpFilePath = tmpFilePathAbs.substring(root.length());
         final FileSystem fileSystem = fileSystem();
         new Runnable(){
             @Override public void run() {
@@ -158,7 +166,8 @@ public class FileSystemStorage implements Storage {
                     if( result.succeeded() ){
                         openTmpFile();
                     }else{
-                        throw new RuntimeException("Failed to create directory '"+tmpFileParentPath+"'."); // TODO: Handle
+                        log.warn("Failed to create directory '"+tmpFileParentPath+"'.");
+                        resolveWithErroneousResource();
                     }
                 });
             }
@@ -168,9 +177,7 @@ public class FileSystemStorage implements Storage {
                         onTmpFileOpen( result.result() );
                     }else{
                         log.warn( "Failed to open tmp file '{}'.", tmpFilePathAbs, result.cause() );
-                        Resource r = new Resource();
-                        r.exists = false;
-                        handler.handle(r);
+                        resolveWithErroneousResource();
                     }
                 });
             }
@@ -182,7 +189,11 @@ public class FileSystemStorage implements Storage {
                         onResourceClose(d);
                     });
                 };
-                d.addErrorHandler( err -> onResourceError(err,tmpFile) );
+                d.addErrorHandler( err -> {
+                    log.error( "Put file failed:" , err );
+                    cleanupFile(tmpFile);
+                });
+                // Resolve with ready-to-use resource.
                 handler.handle(d);
             }
             private void onResourceClose( DocumentResource d ) {
@@ -195,14 +206,25 @@ public class FileSystemStorage implements Storage {
                     });
                 });
             }
-            private void onResourceError( Throwable exc , AsyncFile tmpFile ) {
-                log.error( "Put file failed:" , exc );
-                tmpFile.close( voidCloseEvent -> {
-                    log.debug( "Tmp file '{}' closed." , tmpFilePathAbs);
-                    delete(tmpFilePath, null, null, 0, false, true, voidDeleteEvent -> {
+            /////////////////////////////////////////////////
+            // Special and error cases.
+            /////////////////////////////////////////////////
+            private void cleanupFile(AsyncFile tmpFile ) {
+                tmpFile.close( closeResult -> {
+                    if( closeResult.succeeded() ){
+                        log.debug( "Tmp file '{}' closed." , tmpFilePathAbs);
+                    }else{
+                        log.warn( "Failed to close tmp file '{}'.", tmpFile, closeResult.cause() );
+                    }
+                    delete(tmpFilePath, null, null, 0, false, true, uselessResource -> {
                         log.debug("Tmp file '{}' deleted.", tmpFilePathAbs);
                     });
                 });
+            }
+            private void resolveWithErroneousResource() {
+                final Resource r = new Resource();
+                r.exists = false;
+                handler.handle(r);
             }
         }.run();
     }
