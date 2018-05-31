@@ -74,6 +74,9 @@ public class FileSystemStorage implements Storage {
                                     r.name = item.substring(dirLength + 1);
                                     c.items.add(r);
                                     if (c.items.size() == length) {
+                                        // Remove hidden '/.tmp/' directory.
+                                        c.items.removeIf( node -> ".tmp".equals(node.name) && dirLength==root.length() );
+                                        //
                                         Collections.sort(c.items);
                                         int n = count;
                                         if(n == -1) {
