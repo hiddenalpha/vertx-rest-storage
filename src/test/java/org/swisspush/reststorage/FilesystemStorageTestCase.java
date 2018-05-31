@@ -42,6 +42,10 @@ public abstract class FilesystemStorageTestCase extends ConfigurableTestCase {
 
     @After
     public void deleteTestFiles(TestContext context){
-        vertx.fileSystem().deleteRecursiveBlocking("./target/fileStorage/"+TEST_FILES_PATH, true);
+        final FileSystem fileSystem = vertx.fileSystem();
+        final String relPath = "./target/fileStorage/"+TEST_FILES_PATH;
+        if( fileSystem.existsBlocking(relPath) ){
+            fileSystem.deleteRecursiveBlocking(relPath, true);
+        }
     }
 }
