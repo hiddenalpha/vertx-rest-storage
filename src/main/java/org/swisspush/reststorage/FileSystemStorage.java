@@ -181,14 +181,14 @@ public class FileSystemStorage implements Storage {
             private void openTmpFile() {
                 fileSystem.open(tmpFilePathAbs, new OpenOptions(), result -> {
                     if( result.succeeded() ){
-                        resolveWithResourceFrom( result.result() );
+                        resolveWithTmpFileResource( result.result() );
                     }else{
                         log.warn( "Failed to open tmp file '{}'.", tmpFilePathAbs, result.cause() );
                         resolveWithErroneousResource();
                     }
                 });
             }
-            private void resolveWithResourceFrom(final AsyncFile tmpFile) {
+            private void resolveWithTmpFileResource(final AsyncFile tmpFile) {
                 final DocumentResource d = new DocumentResource();
                 d.writeStream = tmpFile;
                 d.closeHandler = v -> {
