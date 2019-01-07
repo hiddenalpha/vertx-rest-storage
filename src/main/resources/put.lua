@@ -14,11 +14,6 @@ local lockMode = ARGV[11]
 local lockExpire = ARGV[12]
 local compress = tonumber(ARGV[13])
 
--- Special path to reproduce NPE inside RestStorage.java.
-if path == ":houston:from:vehicles:andee:navigation:v1:all:position:" then
-    return "existingResource".." "..resourcesPrefix.."$pathState"
-end
-
 if redis.call('exists',collectionsPrefix..KEYS[1]) == 1 then
     return "existingCollection"
 end
