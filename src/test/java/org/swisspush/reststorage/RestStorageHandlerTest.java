@@ -11,6 +11,7 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.streams.WriteStream;
+import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import io.vertx.ext.web.RoutingContext;
@@ -250,6 +251,77 @@ public class RestStorageHandlerTest {
         synchronized (errorHandlerGotCalledPtr){
             testContext.assertTrue(errorHandlerGotCalledPtr[0], "Victim failed to call error handler.");
         }
+    }
+
+    @Test
+    public void rejectOverrideOfResourceByCollection(TestContext testContext) {
+        final Async async = testContext.async();
+
+        // Setup a storage where we can configure the resource to respond when a PUT occurs.
+        final Storage storage;
+        {
+            storage = new FailFastRestStorage(){
+                @Override public void put(String path, String etag, boolean merge, long expire, String lockOwner, LockMode lockMode, long lockExpire, boolean storeCompressed, Handler<Resource> handler) {
+                    final DocumentResource d = new DocumentResource();
+                    d.exists = false;
+                    d.writeStream = null; // This is what current impl would provide us. Null as stream.
+                    handler.handle( d );
+                }
+            };
+        }
+
+        // Setup victim
+        final RestStorageHandler victim;
+        {
+            final ModuleConfiguration myConfig = new ModuleConfiguration().prefix("/").rejectStorageWriteOnLowMemory(true);
+            victim = new RestStorageHandler( null , log , storage , myConfig );
+        }
+
+        // Setup 1st request we will trigger. This will put "/one/two" and will be
+        // perfectly valid. This is to ensure a conflict for our 2nd request.
+        final HttpServerRequest request;
+        {
+            final HttpServerResponse response = new FailFastVertxHttpServerResponse(){
+                private String statusMessage;
+                private boolean ended = false;
+                private Integer statusCode = null;
+                private MultiMap headers = new CaseInsensitiveHeaders();
+                @Override public boolean ended() { return ended; }
+                @Override public HttpServerResponse setStatusCode(int statusCode) { this.statusCode = statusCode; return this; }
+                @Override public HttpServerResponse setStatusMessage(String statusMessage) { this.statusMessage=statusMessage; return this; }
+                @Override public String getStatusMessage() { return statusMessage; }
+                @Override public void end(String chunk) {
+                    testContext.assertFalse( ended );
+                    ended = true;
+                    testContext.assertEquals( 400 , statusCode );
+                }
+                @Override public FailFastVertxHttpServerResponse endHandler(Handler<Void> endHandler) { return this; }
+                @Override public MultiMap headers() { return headers; }
+                @Override public void end() {
+                    testContext.assertFalse( ended );
+                    ended = true;
+                    testContext.assertEquals( 400 , statusCode );
+                    async.complete();
+                }
+            };
+            request = new FailFastVertxHttpServerRequest(){
+                private final CaseInsensitiveHeaders headers = new CaseInsensitiveHeaders();
+                @Override public HttpMethod method() { return HttpMethod.PUT; }
+                @Override public String path() { return "/one/two"; }
+                @Override public String uri() { return "http://127.0.0.1:1234" + path(); }
+                @Override public String getHeader(String headerName) { return headers.get( headerName ); }
+                @Override public HttpServerRequest pause() { return this; }
+                @Override public HttpServerRequest resume() { return this; }
+                @Override public MultiMap headers() { return headers; }
+                @Override public HttpServerResponse response() { return response; }
+                @Override public String query() { return ""; }
+                @Override public HttpServerRequest endHandler(Handler<Void> endHandler) { return this; }
+                @Override public HttpServerRequest exceptionHandler(Handler<Throwable> errHandler) { /*TBD*/ return this; }
+                @Override public HttpServerRequest handler(Handler<Buffer> handler) { /*TBD*/ return this; }
+            };
+        }
+
+        victim.handle( request );
     }
 
 }
