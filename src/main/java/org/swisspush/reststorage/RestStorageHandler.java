@@ -451,11 +451,11 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
         final HttpServerResponse response = ctx.response();
 
         if( !resource.exists ){
-            // Don't know what this case is for. Simply kept it from earlier implementation.
-            response.setStatusCode(StatusCode.METHOD_NOT_ALLOWED.getStatusCode());
-            response.setStatusMessage(StatusCode.METHOD_NOT_ALLOWED.getStatusMessage());
-            response.headers().add("Allow", "GET, DELETE");
-            response.end();
+            // We'll arrive here when we try to put "/one/two/three" but "/one/two" already
+            // exists as a resource.
+            // See: "https://github.com/swisspush/vertx-rest-storage/blob/v2.5.7/src/main/java/org/swisspush/reststorage/RedisStorage.java#L837".
+            // May there are also other cases this can happen. But I don't know about them.
+            respondWith(response, StatusCode.METHOD_NOT_ALLOWED, null , new CaseInsensitiveHeaders().add("Allow", "GET, DELETE"));
         }
         else{
             // Regular case. We're now ready to copy incoming payload into our resource.
