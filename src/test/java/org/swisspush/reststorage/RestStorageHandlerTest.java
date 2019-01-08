@@ -214,6 +214,7 @@ public class RestStorageHandlerTest {
                     log.debug( "Response status message got set to '{}'.", statusMessage);
                     return this;
                 }
+                @Override public void end(String chunk) {}
             };
             final HttpServerRequest request = new FailFastVertxHttpServerRequest(){
                 @Override public HttpServerRequest pause() {
@@ -290,8 +291,8 @@ public class RestStorageHandlerTest {
                 @Override public void end() {
                     testContext.assertFalse( ended );
                     ended = true;
-                    testContext.assertEquals( 409 , statusCode );
-                    // Defer to ensure handler really is done.
+                    testContext.assertEquals( 405 , statusCode );
+                    // Defer to ensure handler really is done (and doesn't do any crap after he called end).
                     vertx.setTimer( 20 , (delay)->{
                         async.complete();
                     });

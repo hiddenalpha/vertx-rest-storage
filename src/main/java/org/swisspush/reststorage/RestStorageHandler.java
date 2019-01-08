@@ -4,6 +4,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.CaseInsensitiveHeaders;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
@@ -405,8 +406,6 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
         }
 
         storage.put(path, etag, merge, expire, lock, lockMode, lockExpire, storeCompressed, resource -> {
-            final HttpServerRequest request = ctx.request();
-            final HttpServerResponse response = request.response();
             ctx.request().resume();
 
             if (resource.error) {
@@ -449,7 +448,6 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
      * got PUT to storage.
      */
     private void putResource_handleDocumentResource( RoutingContext ctx , DocumentResource resource ){
-        final HttpServerRequest request = ctx.request();
         final HttpServerResponse response = ctx.response();
 
         if( !resource.exists ){
@@ -459,16 +457,11 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
             response.headers().add("Allow", "GET, DELETE");
             response.end();
         }
-        else if( resource.writeStream==null ){
-            // We'll arrive here when we try to put "/one/two/three" but "/one/two" already
-            // exists as a resource.
-            // See: "https://github.com/swisspush/vertx-rest-storage/blob/v2.5.7/src/main/java/org/swisspush/reststorage/RedisStorage.java#L837".
-            respondWith(response, StatusCode.CONFLICT, "Not allowed to replace ");
-        }
         else{
             // Regular case. We're now ready to copy incoming payload into our resource.
+            final HttpServerRequest request = ctx.request();
             resource.addErrorHandler( error -> {
-                respondWith(response, StatusCode.INTERNAL_SERVER_ERROR, error.getMessage());
+                respondWith(response, StatusCode.INTERNAL_SERVER_ERROR, error.getMessage(), null );
             });
             // Complete response when resource written.
             resource.endHandler = event -> response.end();
@@ -683,16 +676,19 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
     }
 
     private void respondWithNotAllowed(HttpServerRequest request) {
-        respondWith(request.response(), StatusCode.METHOD_NOT_ALLOWED, null);
+        respondWith(request.response(), StatusCode.METHOD_NOT_ALLOWED, null, null);
     }
 
     private void respondWithBadRequest(HttpServerRequest request, String responseMessage) {
-        respondWith(request.response(), StatusCode.BAD_REQUEST, responseMessage);
+        respondWith(request.response(), StatusCode.BAD_REQUEST, responseMessage, null);
     }
 
-    private void respondWith(HttpServerResponse response , StatusCode statusCode , String responseBody) {
+    private void respondWith(HttpServerResponse response , StatusCode statusCode , String responseBody , MultiMap headers) {
         response.setStatusCode(statusCode.getStatusCode());
         response.setStatusMessage(statusCode.getStatusMessage());
+        if( headers != null ){
+            response.headers().addAll( headers );
+        }
         if( responseBody != null ){
             response.end( responseBody );
         }else{
