@@ -262,23 +262,19 @@ public class RestStorageHandlerTest {
         {
             storage = new FailFastRestStorage(){
                 @Override public void put(String path, String etag, boolean merge, long expire, String lockOwner, LockMode lockMode, long lockExpire, boolean storeCompressed, Handler<Resource> handler) {
-                    final DocumentResource d = new DocumentResource();
+                    // Here we emulate behavior from "https://github.com/swisspush/vertx-rest-storage/blob/v2.5.7/src/main/java/org/swisspush/reststorage/RedisStorage.java#L837".
+                    DocumentResource d = new DocumentResource();
                     d.exists = false;
-                    d.writeStream = null; // This is what current impl would provide us. Null as stream.
-                    handler.handle( d );
+                    try{
+                        handler.handle( d );
+                    }catch( RuntimeException e ){
+                        testContext.fail(new Exception("Handler is not expected to throw anything for this scenario",e));
+                    }
                 }
             };
         }
 
-        // Setup victim
-        final RestStorageHandler victim;
-        {
-            final ModuleConfiguration myConfig = new ModuleConfiguration().prefix("/").rejectStorageWriteOnLowMemory(true);
-            victim = new RestStorageHandler( null , log , storage , myConfig );
-        }
-
-        // Setup 1st request we will trigger. This will put "/one/two" and will be
-        // perfectly valid. This is to ensure a conflict for our 2nd request.
+        // Setup request we will trigger.
         final HttpServerRequest request;
         {
             final HttpServerResponse response = new FailFastVertxHttpServerResponse(){
@@ -290,18 +286,15 @@ public class RestStorageHandlerTest {
                 @Override public HttpServerResponse setStatusCode(int statusCode) { this.statusCode = statusCode; return this; }
                 @Override public HttpServerResponse setStatusMessage(String statusMessage) { this.statusMessage=statusMessage; return this; }
                 @Override public String getStatusMessage() { return statusMessage; }
-                @Override public void end(String chunk) {
-                    testContext.assertFalse( ended );
-                    ended = true;
-                    testContext.assertEquals( 400 , statusCode );
-                }
-                @Override public FailFastVertxHttpServerResponse endHandler(Handler<Void> endHandler) { return this; }
                 @Override public MultiMap headers() { return headers; }
                 @Override public void end() {
                     testContext.assertFalse( ended );
                     ended = true;
-                    testContext.assertEquals( 400 , statusCode );
-                    async.complete();
+                    testContext.assertEquals( 409 , statusCode );
+                    // Defer to ensure handler really is done.
+                    vertx.setTimer( 20 , (delay)->{
+                        async.complete();
+                    });
                 }
             };
             request = new FailFastVertxHttpServerRequest(){
@@ -315,12 +308,17 @@ public class RestStorageHandlerTest {
                 @Override public MultiMap headers() { return headers; }
                 @Override public HttpServerResponse response() { return response; }
                 @Override public String query() { return ""; }
-                @Override public HttpServerRequest endHandler(Handler<Void> endHandler) { return this; }
-                @Override public HttpServerRequest exceptionHandler(Handler<Throwable> errHandler) { /*TBD*/ return this; }
-                @Override public HttpServerRequest handler(Handler<Buffer> handler) { /*TBD*/ return this; }
             };
         }
 
+        // Setup victim
+        final RestStorageHandler victim;
+        {
+            final ModuleConfiguration myConfig = new ModuleConfiguration().prefix("/").rejectStorageWriteOnLowMemory(true);
+            victim = new RestStorageHandler( null , log , storage , myConfig );
+        }
+
+        // Trigger our funny request.
         victim.handle( request );
     }
 
