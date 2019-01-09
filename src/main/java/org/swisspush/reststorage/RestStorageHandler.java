@@ -438,7 +438,9 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
             else if (resource instanceof DocumentResource) {
                 putResource_handleDocumentResource( ctx , (DocumentResource)resource );
             }else{
-                respondWithBadRequest(ctx.request(),"TBD");
+                final HttpServerRequest request = ctx.request();
+                log.error( "Unexpected case during 'PUT {}'" , request.path() );
+                respondWith( ctx.response() , StatusCode.INTERNAL_SERVER_ERROR , "Unexpected case during PUT" , null );
             }
         });
     }
