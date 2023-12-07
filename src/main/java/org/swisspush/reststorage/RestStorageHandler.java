@@ -267,6 +267,12 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
                                 documentResource.closeHandler.handle(null);
                                 ctx.response().end();
                             });
+                            documentResource.addErrorHandler(throwable -> {
+                                log.error("Houston, we've missed a problem", throwable);
+                            });
+                            documentResource.readStream.exceptionHandler(throwable -> {
+                                log.error("Grrr.", throwable);
+                            });
                             pump.start();
                             // TODO: exception handlers
                         }
