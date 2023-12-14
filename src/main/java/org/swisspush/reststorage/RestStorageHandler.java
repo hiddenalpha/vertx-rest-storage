@@ -1,28 +1,27 @@
 package org.swisspush.reststorage;
 
+import io.netty.util.internal.StringUtil;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
 import io.vertx.core.streams.Pump;
+import io.vertx.ext.auth.authentication.AuthenticationProvider;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import org.swisspush.reststorage.util.LockMode;
-import org.swisspush.reststorage.util.ModuleConfiguration;
-import org.swisspush.reststorage.util.ResourceNameUtil;
-import org.swisspush.reststorage.util.StatusCode;
+import io.vertx.ext.web.handler.BasicAuthHandler;
+import org.slf4j.Logger;
+import org.swisspush.reststorage.util.*;
 
 import java.text.DecimalFormat;
 import java.util.*;
 
 import static org.swisspush.reststorage.util.HttpRequestHeader.*;
-import static org.swisspush.reststorage.util.HttpRequestParam.*;
 import static org.swisspush.reststorage.util.HttpRequestParam.getString;
+import static org.swisspush.reststorage.util.HttpRequestParam.*;
 
 public class RestStorageHandler implements Handler<HttpServerRequest> {
 
@@ -30,11 +29,11 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
     private final Router router;
     private final Storage storage;
 
-    private MimeTypeResolver mimeTypeResolver = new MimeTypeResolver("application/json; charset=utf-8");
+    private final MimeTypeResolver mimeTypeResolver = new MimeTypeResolver("application/json; charset=utf-8");
 
-    private Map<String, String> editors = new LinkedHashMap<>();
+    private final Map<String, String> editors = new LinkedHashMap<>();
 
-    private String newMarker = "?new=true";
+    private final String newMarker = "?new=true";
     private final String prefixFixed;
     private final String prefix;
     private final boolean confirmCollectionDelete;
@@ -60,6 +59,15 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
             editors.putAll(config.getEditorConfig());
         }
 
+        Result<Boolean, String> result = checkHttpAuthenticationConfiguration(config);
+        if(result.isErr()) {
+            router.route().handler(ctx -> respondWith(ctx.response(), StatusCode.INTERNAL_SERVER_ERROR, result.getErr()));
+        } else if (result.getOk()) {
+            AuthenticationProvider authProvider = new ModuleConfigurationAuthentication(config);
+                router.route().handler(BasicAuthHandler.create(authProvider));
+            log.info("Authentication enabled for HTTP API");
+        }
+
         router.postWithRegex(".*_cleanup").handler(this::cleanup);
 
         router.postWithRegex(prefixFixed + ".*").handler(this::storageExpand);
@@ -77,7 +85,7 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
 
     @Override
     public void handle(HttpServerRequest request) {
-        router.accept(request);
+        router.handle(request);
     }
 
     ////////////////////////////
@@ -127,7 +135,7 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
         String offsetFromUrl = getString(params, OFFSET_PARAMETER);
         String limitFromUrl = getString(params, LIMIT_PARAMETER);
         OffsetLimit offsetLimit = UrlParser.offsetLimit(offsetFromUrl, limitFromUrl);
-        storage.get(path, etag, offsetLimit.offset, offsetLimit.limit, new Handler<Resource>() {
+        storage.get(path, etag, offsetLimit.offset, offsetLimit.limit, new Handler<>() {
             public void handle(Resource resource) {
                 if (log.isTraceEnabled()) {
                     log.trace("RestStorageHandler resource exists: {}", resource.exists);
@@ -668,6 +676,19 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
     ////////////////////////////
     // End Router handling    //
     ////////////////////////////
+
+    private Result<Boolean, String> checkHttpAuthenticationConfiguration(ModuleConfiguration modConfig) {
+        if(modConfig.isHttpRequestHandlerAuthenticationEnabled()) {
+            if(StringUtil.isNullOrEmpty(modConfig.getHttpRequestHandlerUsername()) ||
+                    StringUtil.isNullOrEmpty(modConfig.getHttpRequestHandlerPassword())) {
+                String msg = "HTTP API authentication is enabled but credentials are missing";
+                log.warn(msg);
+                return Result.err(msg);
+            }
+            return Result.ok(true);
+        }
+        return Result.ok(false);
+    }
 
     private String cleanPath(String value) {
         value = value.replaceAll("\\.\\.", "").replaceAll("\\/\\/", "/");

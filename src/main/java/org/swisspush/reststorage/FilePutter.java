@@ -8,8 +8,8 @@ import io.vertx.core.file.AsyncFile;
 import io.vertx.core.file.CopyOptions;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.file.OpenOptions;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class FilePutter {
         final FileSystem fileSystem = vertx.fileSystem();
         this.executed = true;
         // Setup required context.
-        this.tmpFileVirtualPath = "/.tmp/uploads/" + new File(realPath).getName() + "-" + UUID.randomUUID().toString() + ".part";
+        this.tmpFileVirtualPath = "/.tmp/uploads/" + new File(realPath).getName() + "-" + UUID.randomUUID() + ".part";
         this.tmpFileRealPath = canonicalizeVirtualPath(tmpFileVirtualPath);
         this.tmpFileParentRealPath = new File(tmpFileRealPath).getParent();
         // Prepare directory for temporary file.

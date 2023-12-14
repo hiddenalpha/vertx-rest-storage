@@ -11,8 +11,8 @@ public class UrlParser {
         int offset = 0;
         if(offsetFromUrl != null) {
             try {
-                offset = Integer.valueOf(offsetFromUrl);
-                offset = offset < 0 ? 0 : offset;
+                offset = Integer.parseInt(offsetFromUrl);
+                offset = Math.max(offset, 0);
             } catch (Exception e) {
                 // do nothing here
             }
@@ -20,8 +20,8 @@ public class UrlParser {
 
         if(limitFromUrl != null) {
             try {
-                limit = Integer.valueOf(limitFromUrl);
-                limit = limit < -1 ? -1 : limit;
+                limit = Integer.parseInt(limitFromUrl);
+                limit = Math.max(limit, -1);
             } catch (Exception e) {
                 // do nothing here
             }

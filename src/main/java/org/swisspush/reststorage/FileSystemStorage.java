@@ -6,8 +6,8 @@ import io.vertx.core.file.FileProps;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.file.FileSystemException;
 import io.vertx.core.file.OpenOptions;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.swisspush.reststorage.util.LockMode;
 
 import java.io.File;
@@ -27,7 +27,7 @@ public class FileSystemStorage implements Storage {
     private final int rootLen;
     private final FileSystemDirLister fileSystemDirLister;
 
-    private Logger log = LoggerFactory.getLogger(FileSystemStorage.class);
+    private final Logger log = LoggerFactory.getLogger(FileSystemStorage.class);
 
     public FileSystemStorage(Vertx vertx, String root) {
         this.vertx = vertx;
