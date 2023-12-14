@@ -485,6 +485,7 @@ public class RedisStorage implements Storage {
 
         @Override
         public ByteArrayReadStream exceptionHandler(Handler<Throwable> handler) {
+            /* WTF?!? */
             return this;
         }
 
