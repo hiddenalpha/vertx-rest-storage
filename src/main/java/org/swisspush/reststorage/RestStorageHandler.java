@@ -583,20 +583,14 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
                 });
     }
 
-    /**/
-    /**/
-    /* TODO continue here downwards in file, but upwards in file hierarchy with review */
-    /**/
-    /**/
-
     private void storageExpand(RoutingContext ctx) {
         if (!containsParam(ctx.request().params(), STORAGE_EXPAND_PARAMETER)) {
             respondWithNotAllowed(ctx.request());
         } else {
-            ctx.request().bodyHandler(event -> {
+            ctx.request().bodyHandler(bodyBuf -> {
                 List<String> subResourceNames = new ArrayList<>();
                 try {
-                    JsonObject body = new JsonObject(event.toString());
+                    JsonObject body = new JsonObject(bodyBuf);
                     JsonArray subResourcesArray = body.getJsonArray("subResources");
                     if (subResourcesArray == null) {
                         respondWithBadRequest(ctx.request(), "Bad Request: Expected array field 'subResources' with names of resources");
@@ -608,43 +602,45 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
                     }
                     ResourceNameUtil.replaceColonsAndSemiColonsInList(subResourceNames);
                 } catch (RuntimeException ex) {
-                    respondWithBadRequest(ctx.request(), "Bad Request: Unable to parse body of storageExpand POST request");
+                    log.warn("Happy stacktrace just for you", ex);
+                    respondWithBadRequest(ctx.request(), "Bad Request: Unable to parse body of storageExpand POST request: "+ ex.getMessage());
                     return;
                 }
 
                 final String path = cleanPath(ctx.request().path().substring(prefixFixed.length()));
                 final String etag = ctx.request().headers().get(IF_NONE_MATCH_HEADER.getName());
                 storage.storageExpand(path, etag, subResourceNames, resource -> {
+                    var rsp = ctx.response();
 
                     if (resource.error) {
-                        ctx.response().setStatusCode(StatusCode.CONFLICT.getStatusCode());
-                        ctx.response().setStatusMessage(StatusCode.CONFLICT.getStatusMessage());
+                        rsp.setStatusCode(StatusCode.CONFLICT.getStatusCode());
+                        rsp.setStatusMessage(StatusCode.CONFLICT.getStatusMessage());
                         String message = StatusCode.CONFLICT.getStatusMessage();
                         if (resource.errorMessage != null) {
                             message = resource.errorMessage;
                         }
-                        ctx.response().end(message);
+                        rsp.end(message);
                         return;
                     }
 
                     if (resource.invalid) {
-                        ctx.response().setStatusCode(StatusCode.INTERNAL_SERVER_ERROR.getStatusCode());
-                        ctx.response().setStatusMessage(StatusCode.INTERNAL_SERVER_ERROR.getStatusMessage());
+                        rsp.setStatusCode(StatusCode.INTERNAL_SERVER_ERROR.getStatusCode());
+                        rsp.setStatusMessage(StatusCode.INTERNAL_SERVER_ERROR.getStatusMessage());
 
                         String message = StatusCode.INTERNAL_SERVER_ERROR.getStatusMessage();
                         if (resource.invalidMessage != null) {
                             message = resource.invalidMessage;
                         }
-                        ctx.response().end(new JsonObject().put("error", message).encode());
+                        rsp.end(new JsonObject().put("error", message).encode());
                         return;
                     }
 
                     if (!resource.modified) {
-                        ctx.response().setStatusCode(StatusCode.NOT_MODIFIED.getStatusCode());
-                        ctx.response().setStatusMessage(StatusCode.NOT_MODIFIED.getStatusMessage());
-                        ctx.response().headers().set(ETAG_HEADER.getName(), etag);
-                        ctx.response().headers().add(CONTENT_LENGTH.getName(), "0");
-                        ctx.response().end();
+                        rsp.setStatusCode(StatusCode.NOT_MODIFIED.getStatusCode());
+                        rsp.setStatusMessage(StatusCode.NOT_MODIFIED.getStatusMessage());
+                        rsp.headers().set(ETAG_HEADER.getName(), etag);
+                        rsp.headers().add(CONTENT_LENGTH.getName(), "0");
+                        rsp.end();
                         return;
                     }
 
@@ -656,14 +652,14 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
                         String mimeType = mimeTypeResolver.resolveMimeType(path);
                         final DocumentResource documentResource = (DocumentResource) resource;
                         if (documentResource.etag != null && !documentResource.etag.isEmpty()) {
-                            ctx.response().headers().add(ETAG_HEADER.getName(), documentResource.etag);
+                            rsp.headers().add(ETAG_HEADER.getName(), documentResource.etag);
                         }
-                        ctx.response().headers().add(CONTENT_LENGTH.getName(), "" + documentResource.length);
-                        ctx.response().headers().add(CONTENT_TYPE.getName(), mimeType);
-                        final Pump pump = Pump.pump(documentResource.readStream, ctx.response());
+                        rsp.headers().add(CONTENT_LENGTH.getName(), "" + documentResource.length);
+                        rsp.headers().add(CONTENT_TYPE.getName(), mimeType);
+                        final Pump pump = Pump.pump(documentResource.readStream, rsp);
                         documentResource.readStream.endHandler(nothing -> {
                             documentResource.closeHandler.handle(null);
-                            ctx.response().end();
+                            rsp.end();
                         });
                         pump.start();
                         // TODO: exception handlers
@@ -672,9 +668,9 @@ public class RestStorageHandler implements Handler<HttpServerRequest> {
                         if (log.isTraceEnabled()) {
                             log.trace("RestStorageHandler Could not find resource: {}", ctx.request().uri());
                         }
-                        ctx.response().setStatusCode(StatusCode.NOT_FOUND.getStatusCode());
-                        ctx.response().setStatusMessage(StatusCode.NOT_FOUND.getStatusMessage());
-                        ctx.response().end(StatusCode.NOT_FOUND.toString());
+                        rsp.setStatusCode(StatusCode.NOT_FOUND.getStatusCode());
+                        rsp.setStatusMessage(StatusCode.NOT_FOUND.getStatusMessage());
+                        rsp.end(StatusCode.NOT_FOUND.toString());
                     }
                 });
             });
