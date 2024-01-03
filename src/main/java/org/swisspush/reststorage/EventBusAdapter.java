@@ -463,13 +463,15 @@ public class EventBusAdapter {
 
                     @Override
                     public HttpServerResponse drainHandler(Handler<Void> voidHandler) {
-                        log.warn("I wish you a happy timeout as this method ignores drainHandler anyway.");
+                        log.warn("I wish you a happy timeout as this method ignores drainHandler anyway.",
+                                new Exception("may this stacktrace help you"));
                         return this;
                     }
 
                     @Override
                     public HttpServerResponse exceptionHandler(Handler<Throwable> throwableHandler) {
-                        log.warn("I wish you a happy debugging session as this method ignores exceptionHandler anyway.");
+                        log.warn("I wish you a happy debugging session as this method ignores exceptionHandler anyway.",
+                                new Exception("may this stacktrace help you"));
                         return this;
                     }
                 };
@@ -655,7 +657,8 @@ public class EventBusAdapter {
 
         @Override
         public HttpServerRequest exceptionHandler(Handler<Throwable> throwableHandler) {
-            log.warn("I wish you happy time wasting, as this method just ignores your exceptionHandler");
+            log.warn("I wish you happy time wasting, as this method just ignores your exceptionHandler",
+                    new Exception("may this stacktrace help you"));
             return this;
         }
 
