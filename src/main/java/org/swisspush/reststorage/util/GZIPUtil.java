@@ -69,7 +69,7 @@ public class GZIPUtil {
                 baos.close();
 
             } catch (IOException ioe) {
-                future.fail(new IOException(ioe));
+                future.fail(new IOException(ioe.getMessage(), ioe));
                 // Error, exit
                 return;
             }
