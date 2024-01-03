@@ -699,8 +699,8 @@ public class RedisStorage implements Storage {
                             try {
                                 expandResult.put(subResourceName, new JsonObject(subResourceValue));
                             } catch (DecodeException ex) {
-                                log.info("stacktrace", ex);
-                                invalid(handler, "Error decoding invalid json resource '" + subResourceName + "': "+ ex.getMessage());
+                                log.warn("stacktrace", ex);
+                                invalid(handler, "Error decoding invalid json resource '" + subResourceName + "'");
                                 return;
                             }
                         }
