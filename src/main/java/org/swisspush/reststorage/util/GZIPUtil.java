@@ -69,7 +69,8 @@ public class GZIPUtil {
                 baos.close();
 
             } catch (IOException ioe) {
-                future.fail(new IOException(ioe.getMessage(), ioe));
+                log.debug("Unable to decompress resource: {}", ioe.getMessage());
+                future.fail(ioe);
                 // Error, exit
                 return;
             }
