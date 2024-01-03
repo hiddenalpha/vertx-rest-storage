@@ -89,13 +89,13 @@ public class LuaScriptState {
 
         redisProvider.redis().onComplete( ev -> {
             if( ev.failed() ){
-                log.error("redisProvider.redis()", ev.cause());
+                log.error("redisProvider.redis()", new Exception("stacktrace", ev.cause()));
                 return;
             }
             var redisAPI = ev.result();
             redisAPI.script(Arrays.asList("exists", sha), existsEv -> {
                 if( existsEv.failed() ) {
-                    log.error("Error checking whether lua script exists", existsEv.cause());
+                    log.error("Error checking whether lua script exists", new Exception("stacktrace", existsEv.cause()));
                     return;
                 }
                 Long exists = existsEv.result().get(0).toLong();
