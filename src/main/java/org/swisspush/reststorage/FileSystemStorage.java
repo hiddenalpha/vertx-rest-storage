@@ -73,7 +73,7 @@ public class FileSystemStorage implements Storage {
                 return;
             }
             var result = booleanAsyncResult.result();
-            if( result == null ){
+            if( result == null || result == false ){
                 log.debug("No such file '{}' ({})", path, fullPath);
                 Resource r = new Resource();
                 r.exists = false;
