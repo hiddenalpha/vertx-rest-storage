@@ -104,7 +104,7 @@ public class DefaultRedisProvider implements RedisProvider {
 
             redis.connect().onComplete( ev -> {
                 if( ev.failed() ) {
-                    promise.fail(new Exception(ev.cause()));
+                    promise.fail(new Exception("redis.connect()", ev.cause()));
                     connecting.set(false);
                     return;
                 }
@@ -130,7 +130,7 @@ public class DefaultRedisProvider implements RedisProvider {
                 // eg, the underlying TCP connection is closed with normal 4-Way-Handshake
                 // this handler will be notified instantly
                 if (reconnectEnabled()) {
-                    conn.endHandler(placeHolder -> {
+                    conn.endHandler(nothing -> {
                         log.warn("redis connection got closed");
                         attemptReconnect(0);
                     });
