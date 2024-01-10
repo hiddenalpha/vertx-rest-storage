@@ -845,9 +845,8 @@ public class RedisStorage implements Storage {
                 bos.write(data.getBytes());
                 return Future.succeededFuture();
             } catch (IOException e) {
-                return Future.failedFuture(e.getMessage());
+                return Future.failedFuture(e);
             }
-
         }
 
         @Override
